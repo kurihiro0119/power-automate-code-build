@@ -1,0 +1,55 @@
+{
+  "template": {
+    "title": "Forms の回答を SharePoint リストに記録",
+    "summary": "フォームに回答が送信されたら詳細を取得し、リストに 1 行追加する",
+    "verified": "インポート未検証 (公式コネクタの operationId に基づく)",
+    "params": {
+      "FORM_ID": { "description": "フォームの ID (フォーム編集画面の URL の id= 以降)", "example": "REPLACE_WITH_FORM_ID" },
+      "SP_SITE_URL": { "description": "SharePoint サイトの URL", "example": "https://contoso.sharepoint.com/sites/demo" },
+      "SP_LIST": { "description": "リストの名前 (またはリスト ID の GUID)", "example": "FormResponses" }
+    }
+  },
+  "displayName": "Forms 回答をリストに記録",
+  "description": "Microsoft Forms の回答を SharePoint リストに追加する。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "When_a_new_response_is_submitted": {
+        "type": "OpenApiConnectionWebhook",
+        "splitOn": "@triggerOutputs()?['body/value']",
+        "inputs": {
+          "host": { "connectionName": "shared_microsoftforms", "operationId": "CreateFormWebhook" },
+          "parameters": { "form_id": "{{FORM_ID}}" }
+        }
+      }
+    },
+    "actions": {
+      "Get_response_details": {
+        "type": "OpenApiConnection",
+        "inputs": {
+          "host": { "connectionName": "shared_microsoftforms", "operationId": "GetFormResponseById" },
+          "parameters": {
+            "form_id": "{{FORM_ID}}",
+            "response_id": "@triggerOutputs()?['body/resourceData/responseId']"
+          }
+        }
+      },
+      "Create_item": {
+        "runAfter": { "Get_response_details": ["Succeeded"] },
+        "type": "OpenApiConnection",
+        "inputs": {
+          "host": { "connectionName": "shared_sharepointonline", "operationId": "PostItem" },
+          "parameters": {
+            "dataset": "{{SP_SITE_URL}}",
+            "table": "{{SP_LIST}}",
+            "item/Title": "@{outputs('Get_response_details')?['body/responder']} (@{outputs('Get_response_details')?['body/submitDate']})"
+          }
+        }
+      }
+    }
+  },
+  "postImport": [
+    "「項目の作成」を開き、フォームの各質問 (動的なコンテンツ) をリストの列に割り当てる。質問の ID はフォームごとに違うためコードでは埋められない",
+    "トリガーと「応答の詳細を取得する」でフォームが正しく選ばれているか確認する"
+  ]
+}

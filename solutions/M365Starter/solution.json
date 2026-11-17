@@ -1,0 +1,34 @@
+{
+  "uniqueName": "M365Starter",
+  "displayName": "M365 Starter",
+  "description": "Outlook / SharePoint / Teams を使うサンプル",
+  "version": "1.0.0.0",
+  "publisher": {
+    "uniqueName": "labpublisher",
+    "displayName": "Lab Publisher",
+    "prefix": "lab",
+    "optionValuePrefix": 10000
+  },
+  "params": {
+    "MAIL_TO": {
+      "description": "宛先メールアドレス (複数は ; 区切り)",
+      "example": "someone@example.com"
+    },
+    "SP_SITE_URL": {
+      "description": "SharePoint サイトの URL",
+      "example": "https://contoso.sharepoint.com/sites/demo"
+    },
+    "SP_LIST": {
+      "description": "リストの名前 (またはリスト ID の GUID)",
+      "example": "Requests"
+    },
+    "TEAMS_GROUP_ID": {
+      "description": "チームの ID (チャネルのリンクに含まれる groupId)",
+      "example": "00000000-0000-0000-0000-000000000000"
+    },
+    "TEAMS_CHANNEL_ID": {
+      "description": "チャネルの ID (19:...@thread.tacv2)",
+      "example": "19:xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx@thread.tacv2"
+    }
+  }
+}

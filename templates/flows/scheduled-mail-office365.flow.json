@@ -1,0 +1,46 @@
+{
+  "template": {
+    "title": "毎朝メールを送る (Office 365 Outlook)",
+    "summary": "スケジュール トリガーで日本時間の毎朝 9 時に定型メールを送る",
+    "verified": "インポート未検証 (アクションの形は Outlook.com 版の実エクスポートと同一)",
+    "params": {
+      "MAIL_TO": { "description": "宛先メールアドレス (複数は ; 区切り)", "example": "someone@example.com" }
+    }
+  },
+  "displayName": "毎朝のメール通知",
+  "description": "日本時間の毎朝 9 時にメールを送る。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "Recurrence": {
+        "type": "Recurrence",
+        "recurrence": {
+          "frequency": "Day",
+          "interval": 1,
+          "timeZone": "Tokyo Standard Time",
+          "schedule": { "hours": ["9"], "minutes": [0] }
+        }
+      }
+    },
+    "actions": {
+      "Today": {
+        "type": "Compose",
+        "inputs": "@convertFromUtc(utcNow(), 'Tokyo Standard Time', 'yyyy/MM/dd')"
+      },
+      "Send_an_email": {
+        "runAfter": { "Today": ["Succeeded"] },
+        "type": "OpenApiConnection",
+        "inputs": {
+          "host": { "connectionName": "shared_office365", "operationId": "SendEmailV2" },
+          "parameters": {
+            "emailMessage/To": "{{MAIL_TO}}",
+            "emailMessage/Subject": "@{outputs('Today')} の定時連絡",
+            "emailMessage/Body": "<p>おはようございます。@{outputs('Today')} の定時連絡です。</p>",
+            "emailMessage/Importance": "Normal"
+          }
+        }
+      }
+    }
+  },
+  "postImport": []
+}

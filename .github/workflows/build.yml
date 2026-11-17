@@ -1,0 +1,27 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test
+        run: python -m unittest -q
+      - name: Validate
+        run: python -m pabuild validate -v
+      # CI には params.local.json が無いので example の値で埋める。
+      # 実際にインポートする zip は手元で (本物の値で) ビルドすること。
+      - name: Build (example params)
+        run: python -m pabuild build --use-examples --legacy
+      - uses: actions/upload-artifact@v4
+        with:
+          name: solutions-example-params
+          path: dist/

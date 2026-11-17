@@ -1,0 +1,9 @@
+# ビルド成果物
+dist/
+
+# 環境固有の値 (メールアドレス・サイト URL など)。Git に入れない
+params.local.json
+
+__pycache__/
+*.pyc
+.DS_Store

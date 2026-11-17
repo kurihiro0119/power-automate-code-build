@@ -1,0 +1,50 @@
+{
+  "name": "NewItemToTeams",
+  "displayName": "新規項目を Teams に通知",
+  "description": "SharePoint リストに項目が作成されたら Teams のチャネルに投稿する。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "When_an_item_is_created": {
+        "type": "OpenApiConnection",
+        "recurrence": {
+          "frequency": "Minute",
+          "interval": 5
+        },
+        "splitOn": "@triggerOutputs()?['body/value']",
+        "inputs": {
+          "host": {
+            "connectionName": "shared_sharepointonline",
+            "operationId": "GetOnNewItems"
+          },
+          "parameters": {
+            "dataset": "{{SP_SITE_URL}}",
+            "table": "{{SP_LIST}}"
+          }
+        }
+      }
+    },
+    "actions": {
+      "Post_message": {
+        "type": "OpenApiConnection",
+        "inputs": {
+          "host": {
+            "connectionName": "shared_teams",
+            "operationId": "PostMessageToConversation"
+          },
+          "parameters": {
+            "poster": "Flow bot",
+            "location": "Channel",
+            "body/recipient/groupId": "{{TEAMS_GROUP_ID}}",
+            "body/recipient/channelId": "{{TEAMS_CHANNEL_ID}}",
+            "body/messageBody": "<p>新しい項目が追加されました: <a href=\"@{triggerOutputs()?['body/{Link}']}\">@{triggerOutputs()?['body/Title']}</a></p>"
+          }
+        }
+      }
+    }
+  },
+  "postImport": [
+    "トリガーを開き、サイトとリストが正しく表示されているか確認する (表示されなければ選び直す)",
+    "「メッセージを投稿する」でチームとチャネルが正しく表示されているか確認する"
+  ]
+}

@@ -1,0 +1,127 @@
+{
+  "name": "DueSoonDigest",
+  "displayName": "期限が近いタスクを Teams に通知",
+  "description": "平日 9 時 (日本時間) に SharePoint の未完了タスクを確認し、期限が WITHIN_DAYS 日以内のものだけ Teams にまとめて投稿する。該当がなければ投稿しない。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "Recurrence": {
+        "type": "Recurrence",
+        "recurrence": {
+          "frequency": "Week",
+          "interval": 1,
+          "timeZone": "Tokyo Standard Time",
+          "schedule": {
+            "hours": [
+              "9"
+            ],
+            "minutes": [
+              0
+            ],
+            "weekDays": [
+              "Monday",
+              "Tuesday",
+              "Wednesday",
+              "Thursday",
+              "Friday"
+            ]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Get_items": {
+        "type": "OpenApiConnection",
+        "inputs": {
+          "host": {
+            "connectionName": "shared_sharepointonline",
+            "operationId": "GetItems"
+          },
+          "parameters": {
+            "dataset": "{{SP_SITE_URL}}",
+            "table": "{{SP_LIST}}",
+            "$top": 200
+          }
+        }
+      },
+      "Due_soon": {
+        "runAfter": {
+          "Get_items": [
+            "Succeeded"
+          ]
+        },
+        "type": "Query",
+        "inputs": {
+          "from": "@coalesce(outputs('Get_items')?['body/value'], json('[]'))",
+          "where": "@and(not(or(equals(string(coalesce(item()?['Status'], '')), '完了'), contains(string(coalesce(item()?['Status'], '')), '\"Value\":\"完了\"'), contains(string(coalesce(item()?['Status'], '')), '\"Value\": \"完了\"'))), if(empty(item()?['DueDate']), false, lessOrEquals(convertFromUtc(item()?['DueDate'], 'Tokyo Standard Time', 'yyyy-MM-dd'), convertFromUtc(addDays(utcNow(), {{WITHIN_DAYS}}), 'Tokyo Standard Time', 'yyyy-MM-dd'))))"
+        }
+      },
+      "Has_any": {
+        "runAfter": {
+          "Due_soon": [
+            "Succeeded"
+          ]
+        },
+        "type": "If",
+        "expression": {
+          "and": [
+            {
+              "greater": [
+                "@length(body('Due_soon'))",
+                0
+              ]
+            }
+          ]
+        },
+        "actions": {
+          "Format_lines": {
+            "type": "Select",
+            "inputs": {
+              "from": "@body('Due_soon')",
+              "select": "@concat('・ ', coalesce(item()?['Title'], '(無題)'), ' — ', convertFromUtc(item()?['DueDate'], 'Tokyo Standard Time', 'yyyy/MM/dd'))"
+            }
+          },
+          "Join_lines": {
+            "runAfter": {
+              "Format_lines": [
+                "Succeeded"
+              ]
+            },
+            "type": "Join",
+            "inputs": {
+              "from": "@body('Format_lines')",
+              "joinWith": "<br>"
+            }
+          },
+          "Post_message": {
+            "runAfter": {
+              "Join_lines": [
+                "Succeeded"
+              ]
+            },
+            "type": "OpenApiConnection",
+            "inputs": {
+              "host": {
+                "connectionName": "shared_teams",
+                "operationId": "PostMessageToConversation"
+              },
+              "parameters": {
+                "poster": "Flow bot",
+                "location": "Channel",
+                "body/recipient/groupId": "{{TEAMS_GROUP_ID}}",
+                "body/recipient/channelId": "{{TEAMS_CHANNEL_ID}}",
+                "body/messageBody": "<p><b>@{convertFromUtc(utcNow(), 'Tokyo Standard Time', 'yyyy/MM/dd')} の期限チェック</b>（@{length(body('Due_soon'))} 件 / {{WITHIN_DAYS}} 日以内。超過も含む）</p><p>@{body('Join_lines')}</p>"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "postImport": [
+    "リストに列 Title、DueDate (日付)、Status があること。Status は 1 行テキストの「完了」、または選択肢の値が「完了」",
+    "「複数の項目の取得」は先頭 200 件まで。古い項目が上限を埋めると新しい期限を取りこぼすので、リストが大きくなったらデザイナーでフィルタークエリを足す",
+    "トリガーと「メッセージを投稿する」を開き、サイト / リスト / チーム / チャネルが正しく出ているか確認する (出なければ選び直す)",
+    "テストするときは期限が今日から 3 日以内の未完了行を 1 件入れて、フローを手動実行する。0 件のときは投稿されない"
+  ]
+}

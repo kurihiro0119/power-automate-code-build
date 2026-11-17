@@ -1,0 +1,75 @@
+{
+  "template": {
+    "title": "Power Apps / Copilot から呼ぶ検索フロー (SharePoint リスト)",
+    "summary": "入力された文字列を SharePoint リストの Title 列と照合して 1 件返す",
+    "verified": "microsoft-vertification/sharepoint-lookup-flow と同じ定義",
+    "params": {
+      "SP_SITE_URL": { "description": "SharePoint サイトの URL", "example": "https://contoso.sharepoint.com/sites/demo" },
+      "SP_LIST": { "description": "リストの名前 (またはリスト ID の GUID)", "example": "Products" }
+    }
+  },
+  "displayName": "SharePoint Lookup",
+  "description": "入力された文字列を SharePoint リストの Title 列と照合して返す。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "PowerAppV2",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "title": "keyword",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "SharePoint リストの Title 列と照合する文字列",
+                "x-ms-content-hint": "TEXT"
+              }
+            },
+            "required": ["text"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Get_items": {
+        "type": "OpenApiConnection",
+        "inputs": {
+          "host": { "connectionName": "shared_sharepointonline", "operationId": "GetItems" },
+          "parameters": {
+            "dataset": "{{SP_SITE_URL}}",
+            "table": "{{SP_LIST}}",
+            "$filter": "Title eq '@{replace(triggerBody()?['text'],'''','''''')}'",
+            "$top": 1
+          }
+        }
+      },
+      "Respond_to_a_Power_App_or_flow": {
+        "runAfter": { "Get_items": ["Succeeded"] },
+        "type": "Response",
+        "kind": "PowerApp",
+        "inputs": {
+          "statusCode": 200,
+          "body": {
+            "found": "@greater(length(outputs('Get_items')?['body/value']),0)",
+            "title": "@{coalesce(first(outputs('Get_items')?['body/value'])?['Title'],'')}",
+            "itemid": "@{coalesce(first(outputs('Get_items')?['body/value'])?['ID'],'')}"
+          },
+          "schema": {
+            "type": "object",
+            "properties": {
+              "found": { "title": "found", "x-ms-dynamically-added": true, "type": "boolean" },
+              "title": { "title": "title", "x-ms-dynamically-added": true, "type": "string" },
+              "itemid": { "title": "itemid", "x-ms-dynamically-added": true, "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "postImport": [
+    "デザイナーで「複数の項目の取得」を開き、サイトとリストが正しく表示されているか確認する (表示されなければ選び直す)"
+  ]
+}

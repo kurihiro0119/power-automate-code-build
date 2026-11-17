@@ -1,0 +1,151 @@
+{
+  "shared_office365": {
+    "displayName": "Office 365 Outlook",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント (Exchange Online のメールボックスが必要)",
+    "operations": {
+      "SendEmailV2": "メールの送信 (V2)",
+      "OnNewEmailV3": "[トリガー] 新しいメールが届いたとき (V3)",
+      "GetEmailsV3": "メールの取得 (V3)",
+      "ReplyToV3": "メールへの返信 (V3)",
+      "V4CalendarPostItem": "イベントの作成 (V4)"
+    }
+  },
+  "shared_outlook": {
+    "displayName": "Outlook.com",
+    "tier": "standard",
+    "signIn": "個人の Microsoft アカウント (outlook.com / hotmail など)",
+    "operations": {
+      "SendEmailV2": "メールの送信 (V2)"
+    }
+  },
+  "shared_sharepointonline": {
+    "displayName": "SharePoint",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント (対象サイトへのアクセス権が必要)",
+    "operations": {
+      "GetOnNewItems": "[トリガー] 項目が作成されたとき",
+      "GetOnUpdatedItems": "[トリガー] 項目が作成または変更されたとき",
+      "GetOnNewFileItems": "[トリガー] ファイルが作成されたとき (プロパティのみ)",
+      "GetItems": "複数の項目の取得",
+      "GetItem": "項目の取得",
+      "PostItem": "項目の作成",
+      "PatchItem": "項目の更新",
+      "DeleteItem": "項目の削除",
+      "CreateFile": "ファイルの作成",
+      "GetFileContent": "ファイル コンテンツの取得",
+      "GetFileContentByPath": "パスによるファイル コンテンツの取得",
+      "HttpRequest": "SharePoint に HTTP 要求を送信します"
+    }
+  },
+  "shared_teams": {
+    "displayName": "Microsoft Teams",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント (Teams ライセンスが必要)",
+    "operations": {
+      "PostMessageToConversation": "チャットまたはチャネルでメッセージを投稿する",
+      "PostCardToConversation": "チャットまたはチャネルにカードを投稿する",
+      "OnNewChannelMessage": "[トリガー] チャネルに新しいメッセージが追加されたとき"
+    }
+  },
+  "shared_onedriveforbusiness": {
+    "displayName": "OneDrive for Business",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント (OneDrive for Business が必要)",
+    "operations": {
+      "CreateFile": "ファイルの作成",
+      "GetFileContent": "ファイル コンテンツの取得",
+      "GetFileContentByPath": "パスによるファイル コンテンツの取得",
+      "ListFolderV2": "フォルダー内のファイルのリスト",
+      "OnNewFileV2": "[トリガー] ファイルが作成されたとき"
+    }
+  },
+  "shared_onedrive": {
+    "displayName": "OneDrive",
+    "tier": "standard",
+    "signIn": "個人の Microsoft アカウント",
+    "operations": {
+      "CreateFile": "ファイルの作成",
+      "GetFileContentByPath": "パスによるファイル コンテンツの取得",
+      "ListFolderV2": "フォルダー内のファイルのリスト"
+    }
+  },
+  "shared_excelonlinebusiness": {
+    "displayName": "Excel Online (Business)",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント",
+    "operations": {
+      "AddRowV2": "表に行を追加",
+      "GetItems": "表内に存在する行を一覧表示",
+      "GetTables": "テーブルの取得",
+      "RunScriptProd": "スクリプトの実行"
+    }
+  },
+  "shared_microsoftforms": {
+    "displayName": "Microsoft Forms",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント (フォームの所有者)",
+    "operations": {
+      "CreateFormWebhook": "[トリガー] 新しい応答が送信されるとき",
+      "GetFormResponseById": "応答の詳細を取得する"
+    }
+  },
+  "shared_approvals": {
+    "displayName": "Approvals (承認)",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント (環境に Dataverse が必要)",
+    "operations": {
+      "StartAndWaitForAnApproval": "開始して承認を待機",
+      "CreateAnApproval": "承認を作成",
+      "WaitForAnApproval": "承認を待機"
+    }
+  },
+  "shared_planner": {
+    "displayName": "Planner",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント",
+    "operations": {
+      "CreateTask_V3": "タスクを作成する",
+      "ListTasks_V3": "タスクを一覧表示します"
+    }
+  },
+  "shared_office365users": {
+    "displayName": "Office 365 Users",
+    "tier": "standard",
+    "signIn": "職場/学校アカウント",
+    "operations": {
+      "MyProfile_V2": "マイ プロフィールの取得 (V2)",
+      "UserProfile_V2": "ユーザー プロフィールの取得 (V2)",
+      "Manager_V2": "上司の取得 (V2)"
+    }
+  },
+  "shared_flowpush": {
+    "displayName": "Notifications (通知)",
+    "tier": "standard",
+    "signIn": "サインイン不要 (Power Automate モバイルアプリへ通知)",
+    "operations": {
+      "SendNotification": "モバイル通知を受け取る",
+      "SendEmailNotification": "メール通知を受け取る"
+    }
+  },
+  "shared_sendmail": {
+    "displayName": "Mail (メール)",
+    "tier": "standard",
+    "signIn": "サインイン不要。作成直後のテナントでは 401 で失敗することがある",
+    "operations": {
+      "SendEmailV3": "メール通知を送信する (V3)"
+    }
+  },
+  "shared_commondataserviceforapps": {
+    "displayName": "Microsoft Dataverse",
+    "tier": "premium",
+    "signIn": "職場/学校アカウント",
+    "operations": {
+      "ListRecords": "行を一覧にする",
+      "CreateRecord": "新しい行を追加する",
+      "UpdateRecord": "行を更新する",
+      "GetItem": "ID で行を取得する",
+      "SubscribeWebhookTrigger": "[トリガー] 行が追加、変更、または削除された場合"
+    }
+  }
+}

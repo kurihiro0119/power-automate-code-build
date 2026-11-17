@@ -1,0 +1,45 @@
+{
+  "template": {
+    "title": "手動実行 → 文字列を組み立てる",
+    "summary": "コネクタなし。サインイン不要なので、インポート経路そのものの動作確認に使う",
+    "verified": "コネクタ不使用。トリガーの形は実環境のエクスポートと同じ"
+  },
+  "displayName": "Hello (動作確認用)",
+  "description": "ボタンで実行し、入力した文字列と実行日時 (日本時間) を組み立てるだけのフロー。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Button",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "title": "メッセージ",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "好きな文字を入力してください",
+                "x-ms-content-hint": "TEXT"
+              }
+            },
+            "required": ["text"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Now_JST": {
+        "type": "Compose",
+        "inputs": "@convertFromUtc(utcNow(), 'Tokyo Standard Time', 'yyyy-MM-dd HH:mm')"
+      },
+      "Message": {
+        "runAfter": { "Now_JST": ["Succeeded"] },
+        "type": "Compose",
+        "inputs": "@concat('入力: ', triggerBody()?['text'], ' / 実行日時: ', outputs('Now_JST'))"
+      }
+    }
+  },
+  "postImport": []
+}

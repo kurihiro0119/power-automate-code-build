@@ -1,0 +1,93 @@
+{
+  "name": "ErrorHandling",
+  "displayName": "エラー処理の型",
+  "description": "Try スコープが失敗したら、失敗したアクション名とエラーをメールで通知する。数字以外を入力すると失敗する。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Button",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "title": "数値",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "数字を入力 (数字以外を入れるとわざと失敗します)",
+                "x-ms-content-hint": "TEXT"
+              }
+            },
+            "required": [
+              "text"
+            ]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Try": {
+        "type": "Scope",
+        "actions": {
+          "Double_the_number": {
+            "type": "Compose",
+            "inputs": "@mul(int(triggerBody()?['text']), 2)"
+          }
+        }
+      },
+      "Catch": {
+        "runAfter": {
+          "Try": [
+            "Failed",
+            "TimedOut"
+          ]
+        },
+        "type": "Scope",
+        "actions": {
+          "Failed_actions": {
+            "type": "Query",
+            "inputs": {
+              "from": "@result('Try')",
+              "where": "@equals(item()?['status'], 'Failed')"
+            }
+          },
+          "Send_error_mail": {
+            "runAfter": {
+              "Failed_actions": [
+                "Succeeded"
+              ]
+            },
+            "type": "OpenApiConnection",
+            "inputs": {
+              "host": {
+                "connectionName": "shared_office365",
+                "operationId": "SendEmailV2"
+              },
+              "parameters": {
+                "emailMessage/To": "{{MAIL_TO}}",
+                "emailMessage/Subject": "フローが失敗しました: @{workflow()?['tags']?['flowDisplayName']}",
+                "emailMessage/Body": "<p>失敗したアクション: @{first(body('Failed_actions'))?['name']}</p><p>エラー: @{first(body('Failed_actions'))?['error']?['message']}</p>",
+                "emailMessage/Importance": "High"
+              }
+            }
+          },
+          "Terminate": {
+            "runAfter": {
+              "Send_error_mail": [
+                "Succeeded",
+                "Failed"
+              ]
+            },
+            "type": "Terminate",
+            "inputs": {
+              "runStatus": "Failed"
+            }
+          }
+        }
+      }
+    }
+  },
+  "postImport": []
+}

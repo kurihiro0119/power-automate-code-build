@@ -1,0 +1,52 @@
+{
+  "template": {
+    "title": "メールの添付ファイルを OneDrive に保存",
+    "summary": "添付付きメールを受信したら、添付ファイルを OneDrive for Business のフォルダーに保存する",
+    "verified": "インポート未検証 (公式コネクタの operationId に基づく)",
+    "params": {
+      "ONEDRIVE_FOLDER": { "description": "保存先フォルダーのパス", "default": "/MailAttachments" },
+      "SUBJECT_FILTER": { "description": "件名に含まれる文字 (空なら全メール)", "default": "" }
+    }
+  },
+  "displayName": "添付ファイルを OneDrive に保存",
+  "description": "受信メールの添付ファイルを OneDrive for Business に保存する。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "When_a_new_email_arrives": {
+        "type": "OpenApiConnectionNotification",
+        "splitOn": "@triggerOutputs()?['body/value']",
+        "inputs": {
+          "host": { "connectionName": "shared_office365", "operationId": "OnNewEmailV3" },
+          "parameters": {
+            "folderPath": "Inbox",
+            "importance": "Any",
+            "fetchOnlyWithAttachment": true,
+            "includeAttachments": true,
+            "subjectFilter": "{{SUBJECT_FILTER}}"
+          }
+        }
+      }
+    },
+    "actions": {
+      "Apply_to_each": {
+        "type": "Foreach",
+        "foreach": "@triggerOutputs()?['body/attachments']",
+        "actions": {
+          "Create_file": {
+            "type": "OpenApiConnection",
+            "inputs": {
+              "host": { "connectionName": "shared_onedriveforbusiness", "operationId": "CreateFile" },
+              "parameters": {
+                "folderPath": "{{ONEDRIVE_FOLDER}}",
+                "name": "@{formatDateTime(utcNow(), 'yyyyMMdd-HHmmss')}_@{items('Apply_to_each')?['name']}",
+                "body": "@base64ToBinary(items('Apply_to_each')?['contentBytes'])"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "postImport": []
+}

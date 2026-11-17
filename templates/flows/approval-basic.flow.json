@@ -1,0 +1,93 @@
+{
+  "template": {
+    "title": "承認依頼 → 結果をメールで通知",
+    "summary": "ボタンで申請内容を入力し、承認者に承認依頼を送り、結果を申請者にメールする",
+    "verified": "インポート未検証 (公式コネクタの operationId に基づく)",
+    "params": {
+      "APPROVER_EMAIL": { "description": "承認者のメールアドレス (複数は ; 区切り)", "example": "approver@example.com" },
+      "MAIL_TO": { "description": "結果を受け取るメールアドレス", "example": "someone@example.com" }
+    }
+  },
+  "displayName": "承認依頼",
+  "description": "承認依頼を送り、承認/却下の結果をメールで通知する。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Button",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "title": "申請内容",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "承認してほしい内容を入力してください",
+                "x-ms-content-hint": "TEXT"
+              }
+            },
+            "required": ["text"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Start_and_wait_for_an_approval": {
+        "type": "OpenApiConnectionWebhook",
+        "inputs": {
+          "host": { "connectionName": "shared_approvals", "operationId": "StartAndWaitForAnApproval" },
+          "parameters": {
+            "approvalType": "Basic",
+            "WebhookApprovalCreationInput/title": "承認依頼: @{triggerBody()?['text']}",
+            "WebhookApprovalCreationInput/assignedTo": "{{APPROVER_EMAIL}}",
+            "WebhookApprovalCreationInput/details": "@{triggerBody()?['text']}",
+            "WebhookApprovalCreationInput/enableNotifications": true,
+            "WebhookApprovalCreationInput/enableReassignment": true
+          }
+        }
+      },
+      "Condition": {
+        "runAfter": { "Start_and_wait_for_an_approval": ["Succeeded"] },
+        "type": "If",
+        "expression": {
+          "and": [
+            { "equals": ["@outputs('Start_and_wait_for_an_approval')?['body/outcome']", "Approve"] }
+          ]
+        },
+        "actions": {
+          "Send_approved_mail": {
+            "type": "OpenApiConnection",
+            "inputs": {
+              "host": { "connectionName": "shared_office365", "operationId": "SendEmailV2" },
+              "parameters": {
+                "emailMessage/To": "{{MAIL_TO}}",
+                "emailMessage/Subject": "承認されました: @{triggerBody()?['text']}",
+                "emailMessage/Body": "<p>申請「@{triggerBody()?['text']}」は承認されました。</p>",
+                "emailMessage/Importance": "Normal"
+              }
+            }
+          }
+        },
+        "else": {
+          "actions": {
+            "Send_rejected_mail": {
+              "type": "OpenApiConnection",
+              "inputs": {
+                "host": { "connectionName": "shared_office365", "operationId": "SendEmailV2" },
+                "parameters": {
+                  "emailMessage/To": "{{MAIL_TO}}",
+                  "emailMessage/Subject": "却下されました: @{triggerBody()?['text']}",
+                  "emailMessage/Body": "<p>申請「@{triggerBody()?['text']}」は却下されました。</p>",
+                  "emailMessage/Importance": "Normal"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "postImport": []
+}

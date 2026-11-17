@@ -1,0 +1,103 @@
+{
+  "name": "LocalLookup",
+  "displayName": "Local Lookup",
+  "description": "入力されたコードを、フローに埋め込んだデータから検索して返す。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "PowerAppV2",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "title": "keyword",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "データの code と照合する文字列(例: A001)",
+                "x-ms-content-hint": "TEXT"
+              }
+            },
+            "required": [
+              "text"
+            ]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Data": {
+        "type": "Compose",
+        "inputs": [
+          {
+            "code": "A001",
+            "name": "ノートPC",
+            "detail": "在庫 12 台"
+          },
+          {
+            "code": "A002",
+            "name": "モニター",
+            "detail": "在庫 5 台"
+          },
+          {
+            "code": "B001",
+            "name": "キーボード",
+            "detail": "在庫なし・入荷待ち"
+          }
+        ]
+      },
+      "Filter_array": {
+        "runAfter": {
+          "Data": [
+            "Succeeded"
+          ]
+        },
+        "type": "Query",
+        "inputs": {
+          "from": "@outputs('Data')",
+          "where": "@equals(toLower(item()?['code']), toLower(triggerBody()?['text']))"
+        }
+      },
+      "Respond_to_a_Power_App_or_flow": {
+        "runAfter": {
+          "Filter_array": [
+            "Succeeded"
+          ]
+        },
+        "type": "Response",
+        "kind": "PowerApp",
+        "inputs": {
+          "statusCode": 200,
+          "body": {
+            "found": "@greater(length(body('Filter_array')),0)",
+            "name": "@{coalesce(first(body('Filter_array'))?['name'],'')}",
+            "detail": "@{coalesce(first(body('Filter_array'))?['detail'],'')}"
+          },
+          "schema": {
+            "type": "object",
+            "properties": {
+              "found": {
+                "title": "found",
+                "x-ms-dynamically-added": true,
+                "type": "boolean"
+              },
+              "name": {
+                "title": "name",
+                "x-ms-dynamically-added": true,
+                "type": "string"
+              },
+              "detail": {
+                "title": "detail",
+                "x-ms-dynamically-added": true,
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "postImport": []
+}

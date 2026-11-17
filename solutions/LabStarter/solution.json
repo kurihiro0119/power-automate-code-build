@@ -1,0 +1,13 @@
+{
+  "uniqueName": "LabStarter",
+  "displayName": "Lab Starter",
+  "description": "サインイン不要の動作確認用ソリューション",
+  "version": "1.0.0.0",
+  "publisher": {
+    "uniqueName": "labpublisher",
+    "displayName": "Lab Publisher",
+    "prefix": "lab",
+    "optionValuePrefix": 10000
+  },
+  "params": {}
+}
