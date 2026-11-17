@@ -57,12 +57,36 @@ Claude などに、このリポジトリを開いた状態で次のように頼�
 
 AI は `templates/flows/` を見本にフローを書き、`validate` のエラーが無くなるまで直します。
 
+## Power Apps (キャンバス アプリ) も入れる
+
+画面を公式のソースコード形式 **pa.yaml** で書き、フローと同じ zip に入れられます。
+`.msapp` の内部はゼロから作れないため、最初に 1 回だけ Studio で空のアプリを作って「ベース」として登録します。
+
+```bash
+# 1. 空のキャンバス アプリ入りソリューションをエクスポートした zip をベースとして登録 (最初の 1 回)
+python3 -m pabuild app-base ~/Downloads/PowerAppsBase_1_0_0_1.zip --id blank-tablet
+
+# 2. テンプレートからアプリを追加して Src/*.pa.yaml を編集 → ビルド
+python3 -m pabuild new-app SalesAutomation Catalog -t local-list-detail --display "備品カタログ"
+python3 -m pabuild build SalesAutomation
+```
+
+| アプリ テンプレート | 内容 | 必要なデータ ソース |
+| --- | --- | --- |
+| `hello-app` | 名前を入れてボタンであいさつ (動作確認用) | なし |
+| `local-list-detail` | 埋め込みデータの検索付き一覧 → 詳細画面 | なし |
+| `flow-lookup` | フロー `LocalLookup` を呼んで結果を表示 | フロー LocalLookup |
+
+書き方・ベースの作り方・既存アプリの取り込みは [docs/app-authoring.md](docs/app-authoring.md)。
+**アプリ部分は実環境での確認がまだ** です (インポート後に Studio で開いて確認・公開してください)。
+
 ## テンプレート
 
 | ID | 内容 | コネクタ |
 | --- | --- | --- |
 | `manual-hello` | 手動実行して文字列を組み立てる (経路の動作確認) | なし |
 | `powerapps-local-lookup` | Power Apps / Copilot から呼ぶ検索 (データ埋め込み) | なし |
+| `trip-settlement` | ボタン入力だけで宿泊上限・日当・警告・承認段を判定 | なし |
 | `powerapps-sharepoint-lookup` | Power Apps / Copilot から呼ぶ SharePoint リスト検索 | SharePoint |
 | `scheduled-mail-office365` | 毎朝 9 時にメール | Office 365 Outlook |
 | `scheduled-mail-outlookcom` | 毎朝 9 時にメール (個人アカウント) | Outlook.com |
@@ -83,6 +107,8 @@ AI は `templates/flows/` を見本にフローを書き、`validate` のエラ�
 | `validate [名前...] [-v]` | 検証だけ |
 | `new-solution <名前>` / `new-flow <ソリューション> <名前> -t <テンプレート>` | 雛形を作る |
 | `templates` / `list` | テンプレート / ソリューションの一覧 |
+| `app-templates` / `app-base <zip\|msapp> --id <id>` | アプリ テンプレートとベースの一覧 / ベースの登録 |
+| `new-app <ソリューション> <名前> -t <テンプレート>` | キャンバス アプリの雛形を作る |
 | `params <名前> [--init]` | 必要なパラメータと設定状況 |
 | `bump <名前>` | バージョンを上げる |
 | `import <zip>` | エクスポートしたソリューション zip をソースに取り込む |
@@ -93,9 +119,13 @@ AI は `templates/flows/` を見本にフローを書き、`validate` のエラ�
 
 ```
 solutions/            ソース。1 ディレクトリ = 1 ソリューション
+                      公開サンプル以外は Git 管理外 (.gitignore)。実案件を足してもコミットされない
   LabStarter/         サインイン不要の動作確認用
+  ExpenseDesk/        コネクタなしの出張旅費精算
   M365Starter/        Outlook / SharePoint / Teams のサンプル
+  DueSoon/            期限が近い未完了タスクを Teams にまとめて投稿するサンプル
 templates/flows/      フローのテンプレート (new-flow の元、AI の見本)
+templates/apps/       アプリのテンプレート (pa.yaml) と bases/ (登録したベース .msapp)
 pabuild/              ビルドツール本体 (標準ライブラリのみ)
   data/connectors.json  コネクタのカタログ (表示名・operationId)
 docs/                 書き方・インポート手順・トラブル対応
@@ -106,6 +136,7 @@ dist/                 ビルド成果物 (Git 管理外)
 ## ドキュメント
 
 - [docs/flow-authoring.md](docs/flow-authoring.md) — `*.flow.json` の書き方と部品集
+- [docs/app-authoring.md](docs/app-authoring.md) — キャンバス アプリ (pa.yaml) の書き方とベースの登録
 - [docs/import-guide.md](docs/import-guide.md) — インポートの手順 (ソリューション / レガシー)
 - [docs/troubleshooting.md](docs/troubleshooting.md) — うまくいかないとき
 - [CLAUDE.md](CLAUDE.md) — AI にフローを書かせるときのルール

@@ -1,0 +1,409 @@
+{
+  "template": {
+    "title": "出張旅費の精算（コネクタなし）",
+    "summary": "ボタンで行程 JSON を渡すと、役職の宿泊上限・日当・警告・承認段を判定して精算書テキストを返す。サインイン不要",
+    "verified": "インポート未検証 (コネクタなし。式は実環境未実行)",
+    "params": {}
+  },
+  "displayName": "出張旅費の精算",
+  "description": "ボタン入力だけで精算する。コネクタは使わない。役職は GRADE_A（宿泊上限 20000 / 日当 3000）、GRADE_B（14000 / 2000）、GRADE_C（9000 / 1500）。宿泊の超過は自己負担。支給総額 30 万円以上は部門長、10 万円以上または警告は上長、それ以外は精算可。交通手段は 新幹線 / 飛行機 / 在来線 / バス / タクシー / 徒歩。",
+  "state": "on",
+  "definition": {
+    "triggers": {
+      "manual": {
+        "type": "Request",
+        "kind": "Button",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "title": "出張者名",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "例: 栗原",
+                "x-ms-content-hint": "TEXT"
+              },
+              "text_1": {
+                "title": "出発日",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "yyyy-MM-dd。例: 2026-11-17",
+                "x-ms-content-hint": "TEXT"
+              },
+              "text_2": {
+                "title": "帰着日",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "yyyy-MM-dd。日帰りは出発日と同じ。例: 2026-11-18",
+                "x-ms-content-hint": "TEXT"
+              },
+              "text_3": {
+                "title": "行程JSON",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "配列。fare と lodging は数値。例: [{\"date\":\"2026-11-17\",\"from\":\"東京\",\"to\":\"大阪\",\"transport\":\"新幹線\",\"fare\":14000,\"lodging\":16000}]",
+                "x-ms-content-hint": "TEXT"
+              },
+              "text_4": {
+                "title": "役職コード",
+                "type": "string",
+                "x-ms-dynamically-added": true,
+                "description": "GRADE_A / GRADE_B / GRADE_C（大文字小文字は無視）",
+                "x-ms-content-hint": "TEXT"
+              }
+            },
+            "required": ["text", "text_1", "text_2", "text_3", "text_4"]
+          }
+        }
+      }
+    },
+    "actions": {
+      "Init": {
+        "type": "InitializeVariable",
+        "inputs": {
+          "variables": [
+            {"name": "report", "type": "string", "value": ""},
+            {"name": "transportTotal", "type": "integer", "value": 0},
+            {"name": "lodgingPaid", "type": "integer", "value": 0},
+            {"name": "selfPay", "type": "integer", "value": 0},
+            {"name": "lodgingNights", "type": "integer", "value": 0},
+            {"name": "lineNo", "type": "integer", "value": 0},
+            {"name": "lines", "type": "array", "value": []},
+            {"name": "flags", "type": "array", "value": []},
+            {"name": "problems", "type": "array", "value": []}
+          ]
+        }
+      },
+      "NL": {
+        "type": "Compose",
+        "inputs": "@decodeUriComponent('%0A')"
+      },
+      "Try": {
+        "runAfter": {"Init": ["Succeeded"], "NL": ["Succeeded"]},
+        "type": "Scope",
+        "actions": {
+          "Parse_items": {
+            "type": "ParseJson",
+            "inputs": {
+              "content": "@triggerBody()?['text_3']",
+              "schema": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "date": {"type": "string"},
+                    "from": {"type": "string"},
+                    "to": {"type": "string"},
+                    "transport": {"type": "string"},
+                    "fare": {"type": "number"},
+                    "lodging": {"type": "number"}
+                  },
+                  "required": ["date", "from", "to", "transport", "fare", "lodging"]
+                }
+              }
+            }
+          },
+          "Grades": {
+            "runAfter": {"Parse_items": ["Succeeded"]},
+            "type": "Compose",
+            "inputs": [
+              {"code": "GRADE_A", "label": "役員", "lodgingCap": 20000, "perDiem": 3000},
+              {"code": "GRADE_B", "label": "管理職", "lodgingCap": 14000, "perDiem": 2000},
+              {"code": "GRADE_C", "label": "一般", "lodgingCap": 9000, "perDiem": 1500}
+            ]
+          },
+          "Find_grade": {
+            "runAfter": {"Grades": ["Succeeded"]},
+            "type": "Query",
+            "inputs": {
+              "from": "@outputs('Grades')",
+              "where": "@equals(toUpper(item()?['code']), toUpper(trim(coalesce(triggerBody()?['text_4'], ''))))"
+            }
+          },
+          "Start_ok": {
+            "runAfter": {"Find_grade": ["Succeeded"]},
+            "type": "Compose",
+            "inputs": "@and(equals(length(coalesce(triggerBody()?['text_1'], '')), 10), equals(substring(concat(coalesce(triggerBody()?['text_1'], ''), '----------'), 4, 1), '-'), equals(substring(concat(coalesce(triggerBody()?['text_1'], ''), '----------'), 7, 1), '-'), equals(length(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(coalesce(triggerBody()?['text_1'], ''), '0', ''), '1', ''), '2', ''), '3', ''), '4', ''), '5', ''), '6', ''), '7', ''), '8', ''), '9', '')), 2))"
+          },
+          "End_ok": {
+            "runAfter": {"Start_ok": ["Succeeded"]},
+            "type": "Compose",
+            "inputs": "@and(equals(length(coalesce(triggerBody()?['text_2'], '')), 10), equals(substring(concat(coalesce(triggerBody()?['text_2'], ''), '----------'), 4, 1), '-'), equals(substring(concat(coalesce(triggerBody()?['text_2'], ''), '----------'), 7, 1), '-'), equals(length(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(coalesce(triggerBody()?['text_2'], ''), '0', ''), '1', ''), '2', ''), '3', ''), '4', ''), '5', ''), '6', ''), '7', ''), '8', ''), '9', '')), 2))"
+          },
+          "Trip_days": {
+            "runAfter": {"End_ok": ["Succeeded"]},
+            "type": "Compose",
+            "inputs": "@if(and(outputs('Start_ok'), outputs('End_ok')), add(div(sub(ticks(triggerBody()?['text_2']), ticks(triggerBody()?['text_1'])), 864000000000), 1), -1)"
+          },
+          "Header_problems": {
+            "runAfter": {"Trip_days": ["Succeeded"]},
+            "type": "Compose",
+            "inputs": "@union(if(equals(length(trim(coalesce(triggerBody()?['text'], ''))), 0), createArray('出張者名が空です'), json('[]')), if(equals(length(body('Find_grade')), 0), createArray(concat('未知の役職コードです: ', coalesce(triggerBody()?['text_4'], ''), '（GRADE_A / GRADE_B / GRADE_C）')), json('[]')), if(not(outputs('Start_ok')), createArray('出発日は yyyy-MM-dd で指定してください'), json('[]')), if(not(outputs('End_ok')), createArray('帰着日は yyyy-MM-dd で指定してください'), json('[]')), if(and(outputs('Start_ok'), outputs('End_ok'), less(outputs('Trip_days'), 1)), createArray('帰着日が出発日より前です'), json('[]')), if(equals(length(body('Parse_items')), 0), createArray('行程が 0 件です'), json('[]')))"
+          },
+          "Header_ok": {
+            "runAfter": {"Header_problems": ["Succeeded"]},
+            "type": "If",
+            "expression": {
+              "and": [
+                {"equals": ["@length(outputs('Header_problems'))", 0]}
+              ]
+            },
+            "actions": {
+              "Grade": {
+                "type": "Compose",
+                "inputs": "@first(body('Find_grade'))"
+              },
+              "Each_leg": {
+                "runAfter": {"Grade": ["Succeeded"]},
+                "type": "Foreach",
+                "foreach": "@body('Parse_items')",
+                "runtimeConfiguration": {"concurrency": {"repetitions": 1}},
+                "actions": {
+                  "Bump_line": {
+                    "type": "IncrementVariable",
+                    "inputs": {"name": "lineNo", "value": 1}
+                  },
+                  "Fare": {
+                    "runAfter": {"Bump_line": ["Succeeded"]},
+                    "type": "Compose",
+                    "inputs": "@int(items('Each_leg')?['fare'])"
+                  },
+                  "Lodging": {
+                    "runAfter": {"Fare": ["Succeeded"]},
+                    "type": "Compose",
+                    "inputs": "@int(items('Each_leg')?['lodging'])"
+                  },
+                  "Cap": {
+                    "runAfter": {"Lodging": ["Succeeded"]},
+                    "type": "Compose",
+                    "inputs": "@int(outputs('Grade')?['lodgingCap'])"
+                  },
+                  "Paid": {
+                    "runAfter": {"Cap": ["Succeeded"]},
+                    "type": "Compose",
+                    "inputs": "@if(less(outputs('Lodging'), 0), 0, min(outputs('Lodging'), outputs('Cap')))"
+                  },
+                  "Leg_date_ok": {
+                    "runAfter": {"Paid": ["Succeeded"]},
+                    "type": "Compose",
+                    "inputs": "@and(equals(length(coalesce(items('Each_leg')?['date'], '')), 10), equals(substring(concat(coalesce(items('Each_leg')?['date'], ''), '----------'), 4, 1), '-'), equals(substring(concat(coalesce(items('Each_leg')?['date'], ''), '----------'), 7, 1), '-'), equals(length(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(coalesce(items('Each_leg')?['date'], ''), '0', ''), '1', ''), '2', ''), '3', ''), '4', ''), '5', ''), '6', ''), '7', ''), '8', ''), '9', '')), 2))"
+                  },
+                  "Leg_in_range": {
+                    "runAfter": {"Leg_date_ok": ["Succeeded"]},
+                    "type": "Compose",
+                    "inputs": "@if(outputs('Leg_date_ok'), and(greaterOrEquals(ticks(items('Each_leg')?['date']), ticks(triggerBody()?['text_1'])), lessOrEquals(ticks(items('Each_leg')?['date']), ticks(triggerBody()?['text_2']))), false)"
+                  },
+                  "Issues": {
+                    "runAfter": {"Leg_in_range": ["Succeeded"]},
+                    "type": "Compose",
+                    "inputs": "@join(union(if(not(outputs('Leg_date_ok')), createArray('日付が yyyy-MM-dd ではない'), json('[]')), if(and(outputs('Leg_date_ok'), not(outputs('Leg_in_range'))), createArray('期間外の日付'), json('[]')), if(less(outputs('Fare'), 0), createArray('交通費が負の数'), json('[]')), if(less(outputs('Lodging'), 0), createArray('宿泊費が負の数'), json('[]')), if(not(contains(createArray('新幹線', '飛行機', '在来線', 'バス', 'タクシー', '徒歩'), coalesce(items('Each_leg')?['transport'], ''))), createArray('交通手段が対象外'), json('[]')), if(and(equals(items('Each_leg')?['transport'], '徒歩'), greater(outputs('Fare'), 0)), createArray('徒歩なのに交通費がある'), json('[]')), if(and(equals(outputs('Trip_days'), 1), greater(outputs('Lodging'), 0)), createArray('日帰りなのに宿泊がある'), json('[]')), if(equals(length(trim(coalesce(items('Each_leg')?['from'], ''))), 0), createArray('出発地が空です'), json('[]')), if(equals(length(trim(coalesce(items('Each_leg')?['to'], ''))), 0), createArray('到着地が空です'), json('[]'))), '、')"
+                  },
+                  "Line_text": {
+                    "runAfter": {"Issues": ["Succeeded"]},
+                    "type": "Compose",
+                    "inputs": "@concat(string(variables('lineNo')), '. ', if(outputs('Leg_date_ok'), formatDateTime(items('Each_leg')?['date'], 'MM/dd'), coalesce(items('Each_leg')?['date'], '?')), ' ', coalesce(items('Each_leg')?['from'], '?'), '→', coalesce(items('Each_leg')?['to'], '?'), ' ', coalesce(items('Each_leg')?['transport'], '?'), ' 交通 ', string(outputs('Fare')), '円 宿泊 ', string(outputs('Lodging')), '円', if(less(outputs('Lodging'), 0), '', concat('（支給 ', string(outputs('Paid')), '円）')))"
+                  },
+                  "Has_issue": {
+                    "runAfter": {"Line_text": ["Succeeded"]},
+                    "type": "If",
+                    "expression": {
+                      "and": [
+                        {"greater": ["@length(outputs('Issues'))", 0]}
+                      ]
+                    },
+                    "actions": {
+                      "Add_problem": {
+                        "type": "AppendToArrayVariable",
+                        "inputs": {
+                          "name": "problems",
+                          "value": "@concat(string(variables('lineNo')), '行目: ', outputs('Issues'))"
+                        }
+                      },
+                      "Add_bad_line": {
+                        "runAfter": {"Add_problem": ["Succeeded"]},
+                        "type": "AppendToArrayVariable",
+                        "inputs": {
+                          "name": "lines",
+                          "value": "@concat(outputs('Line_text'), ' 〔差戻し〕')"
+                        }
+                      }
+                    },
+                    "else": {
+                      "actions": {
+                        "Add_transport": {
+                          "type": "SetVariable",
+                          "inputs": {
+                            "name": "transportTotal",
+                            "value": "@add(variables('transportTotal'), outputs('Fare'))"
+                          }
+                        },
+                        "Add_lodging_paid": {
+                          "runAfter": {"Add_transport": ["Succeeded"]},
+                          "type": "SetVariable",
+                          "inputs": {
+                            "name": "lodgingPaid",
+                            "value": "@add(variables('lodgingPaid'), outputs('Paid'))"
+                          }
+                        },
+                        "Add_self_pay": {
+                          "runAfter": {"Add_lodging_paid": ["Succeeded"]},
+                          "type": "SetVariable",
+                          "inputs": {
+                            "name": "selfPay",
+                            "value": "@add(variables('selfPay'), sub(outputs('Lodging'), outputs('Paid')))"
+                          }
+                        },
+                        "Add_nights": {
+                          "runAfter": {"Add_self_pay": ["Succeeded"]},
+                          "type": "SetVariable",
+                          "inputs": {
+                            "name": "lodgingNights",
+                            "value": "@add(variables('lodgingNights'), if(greater(outputs('Lodging'), 0), 1, 0))"
+                          }
+                        },
+                        "Flag_text": {
+                          "runAfter": {"Add_nights": ["Succeeded"]},
+                          "type": "Compose",
+                          "inputs": "@join(union(if(and(equals(items('Each_leg')?['transport'], 'タクシー'), greater(outputs('Fare'), 5000)), createArray(concat(string(variables('lineNo')), '行目: タクシー ', string(outputs('Fare')), ' 円（5,000 円超）')), json('[]')), if(equals(items('Each_leg')?['transport'], '飛行機'), createArray(concat(string(variables('lineNo')), '行目: 飛行機は領収書を確認')), json('[]'))), '、')"
+                        },
+                        "Store_flag": {
+                          "runAfter": {"Flag_text": ["Succeeded"]},
+                          "type": "If",
+                          "expression": {
+                            "and": [
+                              {"greater": ["@length(outputs('Flag_text'))", 0]}
+                            ]
+                          },
+                          "actions": {
+                            "Add_flag": {
+                              "type": "AppendToArrayVariable",
+                              "inputs": {
+                                "name": "flags",
+                                "value": "@outputs('Flag_text')"
+                              }
+                            }
+                          }
+                        },
+                        "Add_line": {
+                          "runAfter": {"Store_flag": ["Succeeded"]},
+                          "type": "AppendToArrayVariable",
+                          "inputs": {
+                            "name": "lines",
+                            "value": "@outputs('Line_text')"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "Per_diem": {
+                "runAfter": {"Each_leg": ["Succeeded"]},
+                "type": "Compose",
+                "inputs": "@mul(outputs('Trip_days'), int(outputs('Grade')?['perDiem']))"
+              },
+              "Payable": {
+                "runAfter": {"Per_diem": ["Succeeded"]},
+                "type": "Compose",
+                "inputs": "@add(add(variables('transportTotal'), variables('lodgingPaid')), outputs('Per_diem'))"
+              },
+              "Night_note": {
+                "runAfter": {"Payable": ["Succeeded"]},
+                "type": "Compose",
+                "inputs": "@if(equals(variables('lodgingNights'), sub(outputs('Trip_days'), 1)), '', concat('宿泊の行数が見込みと違います（見込み ', string(sub(outputs('Trip_days'), 1)), ' 泊 / 入力 ', string(variables('lodgingNights')), ' 泊）'))"
+              },
+              "Status": {
+                "runAfter": {"Night_note": ["Succeeded"]},
+                "type": "Compose",
+                "inputs": "@if(greater(length(variables('problems')), 0), '差戻し', if(greaterOrEquals(outputs('Payable'), 300000), '部門長確認（支給総額 30万円以上）', if(greaterOrEquals(outputs('Payable'), 100000), '上長確認（支給総額 10万円以上）', if(or(greater(length(variables('flags')), 0), not(equals(outputs('Night_note'), ''))), '上長確認（警告あり）', '精算可'))))"
+              },
+              "Join_lines": {
+                "runAfter": {"Status": ["Succeeded"]},
+                "type": "Join",
+                "inputs": {"from": "@variables('lines')", "joinWith": "\n"}
+              },
+              "Join_flags": {
+                "runAfter": {"Join_lines": ["Succeeded"]},
+                "type": "Join",
+                "inputs": {"from": "@variables('flags')", "joinWith": "\n"}
+              },
+              "Join_problems": {
+                "runAfter": {"Join_flags": ["Succeeded"]},
+                "type": "Join",
+                "inputs": {"from": "@variables('problems')", "joinWith": "\n"}
+              },
+              "Warning_text": {
+                "runAfter": {"Join_problems": ["Succeeded"]},
+                "type": "Compose",
+                "inputs": "@if(and(equals(length(variables('flags')), 0), equals(outputs('Night_note'), '')), 'なし', concat(body('Join_flags'), if(or(equals(body('Join_flags'), ''), equals(outputs('Night_note'), '')), '', outputs('NL')), outputs('Night_note')))"
+              },
+              "Set_report": {
+                "runAfter": {"Warning_text": ["Succeeded"]},
+                "type": "SetVariable",
+                "inputs": {
+                  "name": "report",
+                  "value": "@if(equals(outputs('Status'), '差戻し'), concat('差戻し', outputs('NL'), '出張者: ', trim(coalesce(triggerBody()?['text'], '')), outputs('NL'), '指摘', outputs('NL'), body('Join_problems'), outputs('NL'), '明細', outputs('NL'), body('Join_lines')), concat('精算書', outputs('NL'), '出張者: ', trim(coalesce(triggerBody()?['text'], '')), outputs('NL'), '期間: ', triggerBody()?['text_1'], ' 〜 ', triggerBody()?['text_2'], '（', string(outputs('Trip_days')), ' 日）', outputs('NL'), '役職: ', outputs('Grade')?['code'], ' ', outputs('Grade')?['label'], '（宿泊上限 ', string(outputs('Grade')?['lodgingCap']), '円 / 日当 ', string(outputs('Grade')?['perDiem']), '円）', outputs('NL'), outputs('NL'), '明細', outputs('NL'), body('Join_lines'), outputs('NL'), outputs('NL'), '交通費: ', string(variables('transportTotal')), '円', outputs('NL'), '宿泊支給: ', string(variables('lodgingPaid')), '円', outputs('NL'), '自己負担: ', string(variables('selfPay')), '円', outputs('NL'), '日当: ', string(outputs('Per_diem')), '円（', string(outputs('Trip_days')), '日 × ', string(outputs('Grade')?['perDiem']), '円）', outputs('NL'), '支給総額: ', string(outputs('Payable')), '円', outputs('NL'), outputs('NL'), '警告', outputs('NL'), outputs('Warning_text'), outputs('NL'), '判定: ', outputs('Status'), outputs('NL'), outputs('NL'), 'ルール: 宿泊は役職の上限まで支給し、超過は自己負担。日当は日数×単価。30万円以上は部門長、10万円以上または警告は上長。承認コネクタは使っていません。'))"
+                }
+              }
+            },
+            "else": {
+              "actions": {
+                "Join_header": {
+                  "type": "Join",
+                  "inputs": {"from": "@outputs('Header_problems')", "joinWith": "\n"}
+                },
+                "Set_report_ng": {
+                  "runAfter": {"Join_header": ["Succeeded"]},
+                  "type": "SetVariable",
+                  "inputs": {
+                    "name": "report",
+                    "value": "@concat('差戻し', outputs('NL'), body('Join_header'), outputs('NL'), '行程は集計していません。')"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "Catch": {
+        "runAfter": {"Try": ["Failed", "TimedOut"]},
+        "type": "Scope",
+        "actions": {
+          "Failed_actions": {
+            "type": "Query",
+            "inputs": {
+              "from": "@result('Try')",
+              "where": "@equals(item()?['status'], 'Failed')"
+            }
+          },
+          "Error_text": {
+            "runAfter": {"Failed_actions": ["Succeeded"]},
+            "type": "Compose",
+            "inputs": "@concat('入力の JSON が読めません。行程はオブジェクトの配列、fare と lodging はクォートなしの数値です。', outputs('NL'), '失敗: ', coalesce(first(body('Failed_actions'))?['name'], '?'), ' / ', coalesce(first(body('Failed_actions'))?['error']?['message'], '詳細なし'))"
+          },
+          "Set_report_error": {
+            "runAfter": {"Error_text": ["Succeeded"]},
+            "type": "SetVariable",
+            "inputs": {"name": "report", "value": "@outputs('Error_text')"}
+          }
+        }
+      },
+      "Result": {
+        "runAfter": {
+          "Try": ["Succeeded", "Failed", "TimedOut"],
+          "Catch": ["Succeeded", "Skipped"]
+        },
+        "type": "Compose",
+        "inputs": "@variables('report')"
+      }
+    }
+  },
+  "postImport": [
+    "コネクタのサインインは出ない。フローを開いてテスト実行する",
+    "上長確認の例: 出張者名=栗原 / 出発日=2026-11-17 / 帰着日=2026-11-18 / 役職=GRADE_B / 行程=[{\"date\":\"2026-11-17\",\"from\":\"東京\",\"to\":\"大阪\",\"transport\":\"新幹線\",\"fare\":14000,\"lodging\":16000},{\"date\":\"2026-11-18\",\"from\":\"大阪\",\"to\":\"東京\",\"transport\":\"タクシー\",\"fare\":8000,\"lodging\":0}]。期待は交通費 22000、宿泊支給 14000、自己負担 2000、日当 4000、支給総額 40000、判定は上長確認（警告あり）",
+    "精算可の例: 役職=GRADE_C、出発日=帰着日=2026-11-17、行程=[{\"date\":\"2026-11-17\",\"from\":\"本社\",\"to\":\"支店\",\"transport\":\"在来線\",\"fare\":500,\"lodging\":0}]。期待は支給総額 2000、判定は精算可",
+    "結果はアクション Result の出力。存在しない日付（2026-02-31 など）は日付として解釈がずれることがある",
+    "行程のループは直列。変数の加算を並列にすると金額が欠ける"
+  ]
+}

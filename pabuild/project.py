@@ -53,6 +53,7 @@ class Solution:
     params_spec: Dict[str, Dict[str, Any]]
     connref_overrides: Dict[str, Dict[str, str]]
     flows: List[Flow]
+    apps: List[Any] = field(default_factory=list)  # canvas.App
 
     @property
     def prefix(self) -> str:
@@ -117,6 +118,7 @@ def load_solution(sol_dir: Path) -> Solution:
     publisher = dict(DEFAULT_PUBLISHER)
     publisher.update(raw.get("publisher") or {})
     flows = [load_flow(p) for p in sorted((sol_dir / "flows").glob("*.flow.json"))]
+    from .canvas import load_apps  # canvas は project を import するので遅延読み込み
     return Solution(
         dir=sol_dir,
         unique_name=raw["uniqueName"],
@@ -127,6 +129,7 @@ def load_solution(sol_dir: Path) -> Solution:
         params_spec=_normalize_params_spec(raw.get("params"), manifest_path),
         connref_overrides=raw.get("connectionReferences") or {},
         flows=flows,
+        apps=load_apps(sol_dir),
     )
 
 

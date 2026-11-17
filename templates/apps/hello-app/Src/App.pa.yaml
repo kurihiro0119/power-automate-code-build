@@ -1,0 +1,4 @@
+# Power Apps ソースコード (pa.yaml v3)。書き方: docs/app-authoring.md
+App:
+  Properties:
+    StartScreen: =HomeScreen

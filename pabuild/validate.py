@@ -58,8 +58,8 @@ def validate_solution_meta(solution) -> List[Issue]:
         err("publisher.prefix は英小文字始まりの 2〜8 文字 (英小文字・数字) にしてください")
     if not naming.SOLUTION_NAME_RE.match(str(solution.publisher.get("uniqueName", ""))):
         err("publisher.uniqueName は英字始まりの半角英数字にしてください")
-    if not solution.flows:
-        err("flows/ に *.flow.json が 1 つもありません")
+    if not solution.flows and not solution.apps:
+        err("flows/ に *.flow.json も apps/ にアプリも 1 つもありません")
     seen: Dict[str, str] = {}
     ids: Dict[str, str] = {}
     for flow in solution.flows:
@@ -73,6 +73,15 @@ def validate_solution_meta(solution) -> List[Issue]:
         if fid in ids:
             err(f"フロー ID {fid} が重複しています ({ids[fid]} と {flow.path.name})")
         ids[fid] = flow.path.name
+    app_names: Dict[str, str] = {}
+    for app in solution.apps:
+        if not naming.FLOW_NAME_RE.match(app.name):
+            err(f"アプリ名 '{app.name}' は英字始まりの半角英数字とアンダースコアだけにしてください (日本語は displayName)")
+        if app.name.lower() in app_names:
+            err(f"アプリ名 '{app.name}' が重複しています")
+        app_names[app.name.lower()] = app.dir.name
+        if not app.src:
+            err(f"apps/{app.dir.name}/Src に *.pa.yaml がありません")
     return issues
 
 

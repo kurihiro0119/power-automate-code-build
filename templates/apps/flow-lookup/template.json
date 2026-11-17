@@ -1,0 +1,7 @@
+{
+  "title": "フローを呼ぶ検索アプリ",
+  "summary": "入力したコードでフロー LocalLookup (テンプレート powerapps-local-lookup) を呼び、結果を表示する",
+  "verified": "未検証 (ベースに LocalLookup フローを追加しておく必要あり。手順は docs/app-authoring.md)",
+  "dataSources": ["LocalLookup"],
+  "postImport": ["アプリが呼ぶフロー LocalLookup が同じ環境でオンになっていることを確認する"]
+}

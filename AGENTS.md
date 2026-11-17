@@ -25,7 +25,9 @@
   **`name` を変えるとフローの GUID が変わり、インポート時に別フローとして作られる**
 - 既存フローに `id` が書かれていたら消さない (エクスポート元のフローと対応している)
 - メールアドレス・サイト URL・チーム ID・フォーム ID などを `*.flow.json` に直書きしない (`{{...}}` にする)。
-  `params.local.json` はコミットしない
+  `params.local.json` はコミットしない。
+  `solutions/` は公開サンプル (LabStarter / ExpenseDesk / M365Starter / DueSoon) 以外 Git 管理外。
+  実案件を `.gitignore` の例外に足さない
 - コネクタを使うアクション/トリガーは `type: OpenApiConnection` 系で、`inputs.host` に `connectionName` と
   `operationId` を書く。`apiId` と `authentication` は省略する (ビルドが補う)
 - `operationId` と `parameters` のキーを推測で作らない。優先順位:
@@ -38,6 +40,24 @@
 - プレミアム (HTTP、Dataverse コネクタなど) は利用者が求めたときだけ使う。`validate` が警告を出す
 - 新しいコネクタや操作を実環境で確認できたら `pabuild/data/connectors.json` に追記し、
   汎用的なフローは `templates/flows/` に追加する (`template.verified` に確認状況を書く)
+
+## キャンバス アプリ (Power Apps) を追加・変更するとき
+
+書式は `docs/app-authoring.md`。ソースは `solutions/<ソリューション>/apps/<Name>/app.json` と `Src/*.pa.yaml` (公式 pa.yaml v3)。
+
+1. `python3 -m pabuild app-templates` でテンプレートと登録済みベースを確認する。
+   **ベースが 0 件なら作れない**: 利用者に「空のキャンバス アプリ入りソリューションをエクスポートして
+   `python3 -m pabuild app-base <zip> --id <id>` を実行」してもらう (ベースを推測で作らない)
+2. `python3 -m pabuild new-app <ソリューション> <AppName> -t <テンプレート> --display "<日本語名>"` で雛形を作る
+3. `Src/*.pa.yaml` を編集する。プロパティの値は必ず `=` で始まる Power Fx。コントロール名はアプリ全体で一意
+4. データ ソース (SharePoint・Dataverse・フローなど) は pa.yaml に追加できない。ベースの `base.json` の
+   `dataSources` にあるものだけを使い、無ければベースの取り直しを利用者に頼む
+5. `validate -v` → `build` → `python3 -m unittest -q` (フローと同じ)
+
+- `.msapp`・`base/`・`templates/apps/bases/` の中身は手で編集しない
+- アプリの `name` を変えるとスキーマ名が変わり別アプリになる。`schemaName` が書かれていたら消さない
+- `validate` は数式の中身 (関数名・列名) を検査しない。使う関数・プロパティは `templates/apps/` の実例か
+  Microsoft の公式ドキュメントにあるものに限り、インポート後に Studio で ⚠ が無いか確認するよう利用者に伝える
 
 ## 式でよく間違える点
 

@@ -16,7 +16,7 @@ def render(prep: Prepared, legacy_names: List[str]) -> str:
         "",
         f"- ソリューション: `{s.unique_name}` / バージョン `{s.version}`",
         f"- ファイル: `{zip_name}`",
-        f"- フロー数: {len(prep.flows)}",
+        f"- フロー数: {len(prep.flows)}" + (f" / キャンバス アプリ数: {len(prep.apps)}" if prep.apps else ""),
         "",
         "## 1. インポートする",
         "",
@@ -46,7 +46,7 @@ def render(prep: Prepared, legacy_names: List[str]) -> str:
             "",
             "なし (このソリューションはコネクタを使いません)。",
         ]
-    lines += ["", "## 3. フローごとの確認", ""]
+    lines += ["", "## 3. フローごとの確認" if not prep.apps else "## 3. フロー・アプリごとの確認", ""]
     for pf in prep.flows:
         f = pf.flow
         state = "オン" if f.state == "on" else "オフ (インポート後に手動でオンにする)"
@@ -62,6 +62,20 @@ def render(prep: Prepared, legacy_names: List[str]) -> str:
             lines.append("- インポート後に手でやること:")
             lines += [f"  - [ ] {step}" for step in f.post_import]
         lines.append("- [ ] 「ソリューション」→ このソリューション → フローを開き、テスト実行して成功を確認する")
+        lines.append("")
+    for pa in prep.apps:
+        app = pa.app
+        lines.append(f"### アプリ: {app.display_name}")
+        lines.append("")
+        if app.description:
+            lines += [app.description, ""]
+        lines.append(f"- 画面: {', '.join(pa.analysis.screens_order)}")
+        lines.append(f"- ベース: `{pa.base.id}` (使えるデータ ソース: {', '.join(pa.base.data_sources) or 'なし'})")
+        lines.append("- [ ] 「アプリ」→ このアプリを「編集」で Power Apps Studio で開き、画面とエラー (右上の ⚠) を確認する")
+        lines.append("- [ ] 問題がなければ「保存」→「公開」する (コードから生成したアプリは、一度 Studio で開いて公開すると確実です)")
+        if app.post_import:
+            lines += [f"- [ ] {step}" for step in app.post_import]
+        lines.append("- [ ] 再生 (▶) して動作を確かめる")
         lines.append("")
     if prep.used_tokens:
         lines += ["## 4. このビルドに埋め込んだ値", "", "| パラメータ | 値 | 備考 |", "| --- | --- | --- |"]

@@ -4,6 +4,14 @@ dist/
 # 環境固有の値 (メールアドレス・サイト URL など)。Git に入れない
 params.local.json
 
+# 実案件のソリューションは外に出せないことがある。公開サンプルだけ追跡する。
+# サンプルを増やすときは下の例外にディレクトリを足す。
+/solutions/*
+!/solutions/LabStarter/
+!/solutions/ExpenseDesk/
+!/solutions/M365Starter/
+!/solutions/DueSoon/
+
 __pycache__/
 *.pyc
 .DS_Store

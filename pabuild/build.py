@@ -7,12 +7,13 @@ import zipfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from types import SimpleNamespace
+from typing import Any, Dict, List, Optional, Set, Union
 from xml.sax.saxutils import escape, quoteattr
 
-from . import catalog, flowdef, naming, params, validate
+from . import canvas, catalog, flowdef, naming, params, validate
 from .project import ProjectError, Solution, read_json
-from .validate import ERROR, Issue
+from .validate import ERROR, INFO, WARNING, Issue
 
 CONTENT_TYPES_XML = (
     '<?xml version="1.0" encoding="utf-8"?>'
@@ -21,6 +22,23 @@ CONTENT_TYPES_XML = (
     '<Default Extension="json" ContentType="application/octet-stream" />'
     "</Types>"
 )
+
+
+def content_types_xml(extra_parts: List[str]) -> str:
+    """キャンバス アプリがあるときは .msapp と拡張子なしの背景画像を登録する (エクスポート実物と同じ)。"""
+    if not extra_parts:
+        return CONTENT_TYPES_XML
+    overrides = "".join(
+        f'<Override PartName={quoteattr("/" + p)} ContentType="application/octet-stream" />' for p in extra_parts
+    )
+    return (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="xml" ContentType="text/xml" />'
+        '<Default Extension="json" ContentType="application/octet-stream" />'
+        '<Default Extension="msapp" ContentType="application/octet-stream" />'
+        f"{overrides}</Types>"
+    )
 # zip 内の更新日時を固定し、同じソースから同じバイト列の zip が出るようにする
 FIXED_ZIP_TIME = (2020, 1, 1, 0, 0, 0)
 
@@ -54,6 +72,7 @@ class Prepared:
     used_tokens: Set[str]
     example_tokens: Set[str]
     issues: List[Issue] = field(default_factory=list)
+    apps: List[canvas.PreparedApp] = field(default_factory=list)
 
     @property
     def errors(self) -> List[Issue]:
@@ -81,6 +100,8 @@ def prepare(
     used: Set[str] = set()
     for flow in solution.flows:
         used |= params.find_tokens(flow.definition)
+    for app in solution.apps:
+        used |= canvas.find_tokens(app)
     values, _missing, from_example = params.resolve(
         solution.params_spec, load_local_params(solution), overrides or {}, used, use_examples
     )
@@ -111,7 +132,46 @@ def prepare(
                 or f"{catalog.display_name(api)} ({solution.display_name})",
             )
         flows.append(PreparedFlow(flow, solution.flow_id(flow), definition, conns))
-    return Prepared(solution, flows, connrefs, values, used, from_example, issues)
+    apps = _prepare_apps(solution, values, connrefs, issues, strict_params)
+    return Prepared(solution, flows, connrefs, values, used, from_example, issues, apps)
+
+
+def _prepare_apps(solution: Solution, values: Dict[str, Any], connrefs: Dict[str, ConnRef],
+                  issues: List[Issue], strict_params: bool) -> List[canvas.PreparedApp]:
+    root = solution.dir.parent.parent
+    declared = set(solution.params_spec) | set(values)
+    out: List[canvas.PreparedApp] = []
+    for app in solution.apps:
+        label = f"app:{app.name}"
+        try:
+            pa = canvas.prepare_app(root, solution.prefix, solution.unique_name, app, values)
+        except ProjectError as e:
+            issues.append(Issue(ERROR, label, "", str(e)))
+            continue
+        issues += validate.unresolved_token_issues(SimpleNamespace(name=label), pa.src, declared, strict_params)
+        for yi in pa.analysis.issues:
+            where = f"Src/{yi.file}" + (f":{yi.line}" if yi.line else "")
+            issues.append(Issue(yi.level, label, where, yi.message))
+        if not pa.base.canvasapp_xml:
+            issues.append(Issue(WARNING, label, "base", (
+                f"ベース '{pa.base.id}' は .msapp 単体から登録されたため、ソリューション内のアプリ定義 (CanvasApp) を推測で生成します (未検証)。"
+                "ソリューション zip から `app-base` したベースを使うと確実です")))
+        sources = pa.base.data_sources
+        issues.append(Issue(INFO, label, "base", (
+            f"ベース '{pa.base.id}' で使えるデータ ソース: {', '.join(sources) if sources else 'なし'}"
+            " (pa.yaml にはデータ ソースを追加できません)")))
+        for ref in pa.base.connection_references:
+            logical = ref["logicalName"]
+            if any(c.logical_name == logical for c in connrefs.values()):
+                continue
+            connrefs[f"app:{logical}"] = ConnRef(
+                connection_name=f"app:{logical}",
+                api_name=ref["apiName"],
+                logical_name=logical,
+                display_name=ref.get("displayName") or f"{catalog.display_name(ref['apiName'])} ({solution.display_name})",
+            )
+        out.append(pa)
+    return out
 
 
 # --------------------------------------------------------------------------- ソリューション
@@ -141,6 +201,9 @@ def solution_xml(prep: Prepared) -> str:
         else "<Descriptions />"
     )
     roots = [f'      <RootComponent type="29" id="{{{pf.guid}}}" behavior="0" />' for pf in prep.flows]
+    roots += [
+        f'      <RootComponent type="300" schemaName={quoteattr(pa.schema_name)} behavior="0" />' for pa in prep.apps
+    ]
     roots += [
         f'      <RootComponent type="connectionreference" schemaName={quoteattr(c.logical_name)} behavior="0" />'
         for c in prep.connrefs.values()
@@ -209,6 +272,13 @@ def _workflow_xml(pf: PreparedFlow, version: str) -> str:
 
 def customizations_xml(prep: Prepared) -> str:
     workflows = "\n".join(_workflow_xml(pf, prep.solution.version) for pf in prep.flows)
+    workflows_el = f"  <Workflows>\n{workflows}\n  </Workflows>" if prep.flows else "  <Workflows />"
+    if prep.apps:
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        app_items = "\n".join(canvas.canvasapp_xml(pa, prep.solution.version, stamp) for pa in prep.apps)
+        canvas_el = f"  <CanvasApps>\n{app_items}\n  </CanvasApps>\n"
+    else:
+        canvas_el = ""
     if prep.connrefs:
         items = "\n".join(
             f"""    <connectionreference connectionreferencelogicalname={quoteattr(c.logical_name)}>
@@ -227,9 +297,7 @@ def customizations_xml(prep: Prepared) -> str:
 <ImportExportXml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <Entities />
   <Roles />
-  <Workflows>
-{workflows}
-  </Workflows>
+{workflows_el}
   <FieldSecurityProfiles />
   <Templates />
   <EntityMaps />
@@ -238,25 +306,28 @@ def customizations_xml(prep: Prepared) -> str:
   <optionsets />
   <CustomControls />
   <EntityDataProviders />
-{connrefs}  <Languages>
+{canvas_el}{connrefs}  <Languages>
     <Language>1033</Language>
   </Languages>
 </ImportExportXml>
 """
 
 
-def solution_files(prep: Prepared) -> Dict[str, str]:
-    files = {
+def solution_files(prep: Prepared) -> Dict[str, Union[str, bytes]]:
+    files: Dict[str, Union[str, bytes]] = {
         "solution.xml": solution_xml(prep),
         "customizations.xml": customizations_xml(prep),
-        "[Content_Types].xml": CONTENT_TYPES_XML,
+        "[Content_Types].xml": content_types_xml([pa.background_path for pa in prep.apps]),
     }
     for pf in prep.flows:
         files[f"Workflows/{pf.file_name}"] = workflow_json(pf, prep.connrefs)
+    for pa in prep.apps:
+        files[pa.msapp_path] = canvas.build_msapp(pa, prep.solution.unique_name, FIXED_ZIP_TIME)
+        files[pa.background_path] = canvas.background_png(pa)
     return files
 
 
-def write_zip(path: Path, files: Dict[str, str]) -> None:
+def write_zip(path: Path, files: Dict[str, Union[str, bytes]]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -264,7 +335,7 @@ def write_zip(path: Path, files: Dict[str, str]) -> None:
             info = zipfile.ZipInfo(name, date_time=FIXED_ZIP_TIME)
             info.compress_type = zipfile.ZIP_DEFLATED
             info.external_attr = 0o644 << 16
-            zf.writestr(info, text.encode("utf-8"))
+            zf.writestr(info, text if isinstance(text, bytes) else text.encode("utf-8"))
     path.write_bytes(buf.getvalue())
 
 

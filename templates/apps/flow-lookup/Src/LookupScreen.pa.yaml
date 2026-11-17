@@ -1,0 +1,45 @@
+# Power Apps ソースコード (pa.yaml v3)。書き方: docs/app-authoring.md
+# LocalLookup はベースの .msapp に「データ」→「フローを追加」で入れておいたフロー。
+# 戻り値は found (真偽値) / name / detail (フローの「Power App またはフローに応答する」で定義)
+Screens:
+  LookupScreen:
+    Properties:
+      Fill: =RGBA(245, 246, 250, 1)
+    Children:
+      - LookupTitle:
+          Control: Label
+          Properties:
+            Text: ="コードで検索"
+            FontWeight: =FontWeight.Bold
+            Size: =22
+            X: =24
+            Y: =16
+            Width: =Parent.Width - 48
+            Height: =56
+      - CodeInput:
+          Control: Classic/TextInput
+          Properties:
+            Default: =""
+            HintText: ="例：A001"
+            X: =24
+            Y: =80
+            Width: =Min(320, Parent.Width - 48)
+            Height: =44
+      - SearchButton:
+          Control: Classic/Button
+          Properties:
+            Text: ="検索"
+            OnSelect: =Set(varResult, LocalLookup.Run(CodeInput.Text))
+            X: =24
+            Y: =136
+            Width: =160
+            Height: =44
+      - ResultLabel:
+          Control: Label
+          Properties:
+            Text: =If(IsBlank(varResult), "", If(varResult.found, varResult.name & "：" & varResult.detail, "見つかりませんでした"))
+            Size: =16
+            X: =24
+            Y: =196
+            Width: =Parent.Width - 48
+            Height: =80

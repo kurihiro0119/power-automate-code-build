@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from . import __version__, build as builder, guide, importer, naming, params, scaffold
+from . import __version__, build as builder, canvas, guide, importer, naming, params, scaffold
 from .project import ProjectError, find_solutions, load_solution, read_json, resolve_solution_dir, write_json
 from .validate import ERROR, INFO, WARNING
 
@@ -58,6 +58,8 @@ def cmd_list(args, root: Path) -> int:
         print(f"{d.name}  ({s.display_name} / v{s.version})")
         for f in s.flows:
             print(f"  - {f.name}: {f.display_name}")
+        for a in s.apps:
+            print(f"  - [アプリ] {a.name}: {a.display_name} (ベース: {a.base_ref or 'base/'})")
     return 0
 
 
@@ -69,6 +71,45 @@ def cmd_templates(args, root: Path) -> int:
               + (f" / パラメータ: {', '.join(t['params'])}" if t["params"] else ""))
         if t["verified"]:
             print(f"    検証状況: {t['verified']}")
+    return 0
+
+
+def cmd_app_templates(args, root: Path) -> int:
+    for t in scaffold.list_app_templates(root):
+        print(t["id"])
+        print(f"    {t['title']} — {t['summary']}")
+        print(f"    必要なデータ ソース: {', '.join(t['dataSources']) or 'なし'}"
+              + (f" / パラメータ: {', '.join(t['params'])}" if t["params"] else ""))
+        if t["verified"]:
+            print(f"    検証状況: {t['verified']}")
+    bases = canvas.list_bases(root)
+    print("\n登録済みのベース (.msapp):" + ("" if bases else " なし (`app-base` で登録)"))
+    for b in bases:
+        m = b.meta
+        kind = "ソリューションから取り込み" if b.canvasapp_xml else ".msapp のみ (CanvasApp 定義は推測)"
+        print(f"  {b.id}: {m.get('title', '')} [{m.get('formFactor', '?')} {kind}]")
+        print(f"      データ ソース: {', '.join(b.data_sources) or 'なし'}")
+        if m.get("verified"):
+            print(f"      検証状況: {m['verified']}")
+    return 0
+
+
+def cmd_app_base(args, root: Path) -> int:
+    target = scaffold.add_base(root, Path(args.file), args.id, args.title, args.app)
+    meta = canvas.load_base(target).meta
+    print(f"登録しました: {_rel(target)}")
+    print(f"  形: {meta.get('formFactor')} / データ ソース: {', '.join(meta.get('dataSources') or []) or 'なし'}")
+    if meta.get("capturedFrom") == "msapp":
+        print("  [注意] .msapp 単体からの登録です。ソリューション zip から登録するとアプリ定義 (CanvasApp) も実物を使えます")
+    print(f"次: python3 -m pabuild new-app <ソリューション> <AppName> -t hello-app --base {target.name}")
+    return 0
+
+
+def cmd_new_app(args, root: Path) -> int:
+    sol_dir = resolve_solution_dir(root, args.solution)
+    target = scaffold.new_app(root, sol_dir, args.name, args.template, args.base, args.base_file, args.display)
+    print(f"作成しました: {_rel(target)}")
+    print(f"次: Src/*.pa.yaml を編集して python3 -m pabuild validate {sol_dir.name} -v")
     return 0
 
 
@@ -93,7 +134,8 @@ def cmd_validate(args, root: Path) -> int:
         prep = builder.prepare(load_solution(d), _parse_overrides(args.param), strict_params=False, use_examples=True)
         errors = len(prep.errors)
         warns = len([i for i in prep.issues if i.level == WARNING])
-        print(f"{d.name}: フロー {len(prep.flows)} 件 / エラー {errors} 件 / 警告 {warns} 件")
+        apps = f" / アプリ {len(prep.apps)} 件" if prep.solution.apps else ""
+        print(f"{d.name}: フロー {len(prep.flows)} 件{apps} / エラー {errors} 件 / 警告 {warns} 件")
         _print_issues(prep, args.verbose)
         failed = failed or bool(errors)
     return 1 if failed else 0
@@ -116,6 +158,8 @@ def cmd_build(args, root: Path) -> int:
         builder.write_zip(zip_path, builder.solution_files(prep))
         print(f"  ソリューション: {_rel(zip_path)}")
         legacy_names: List[str] = []
+        if args.legacy and prep.apps:
+            print("  [情報] レガシー パッケージにはキャンバス アプリを含めません (フローだけ)")
         if args.legacy:
             for pf in prep.flows:
                 name = f"{solution.unique_name}_{pf.flow.name}_legacy.zip"
@@ -189,6 +233,23 @@ def make_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("list", help="ソリューションとフローの一覧").set_defaults(func=cmd_list)
     sub.add_parser("templates", help="フロー テンプレートの一覧").set_defaults(func=cmd_templates)
+    sub.add_parser("app-templates", help="アプリ テンプレートと登録済みベースの一覧").set_defaults(func=cmd_app_templates)
+
+    s = sub.add_parser("app-base", help="Studio で作ったアプリ (.msapp / ソリューション zip) をベースとして登録する")
+    s.add_argument("file", help=".msapp か、キャンバス アプリを含むソリューション zip")
+    s.add_argument("--id", required=True, help="ベース ID (英小文字・数字・ハイフン。例: blank-tablet)")
+    s.add_argument("--title", default="", help="説明 (例: 空のタブレット アプリ)")
+    s.add_argument("--app", default="", help="zip に複数アプリがあるときの表示名 / スキーマ名")
+    s.set_defaults(func=cmd_app_base)
+
+    s = sub.add_parser("new-app", help="テンプレートからキャンバス アプリを追加する")
+    s.add_argument("solution")
+    s.add_argument("name", help="アプリ名 (半角英数字。例: Inventory)")
+    s.add_argument("--template", "-t", default="hello-app")
+    s.add_argument("--base", default="", help="登録済みベースの ID (1 つだけなら省略可)")
+    s.add_argument("--base-file", default="", help="このアプリ専用のベース (.msapp / ソリューション zip)")
+    s.add_argument("--display", default="", help="表示名 (日本語可)")
+    s.set_defaults(func=cmd_new_app)
 
     s = sub.add_parser("new-solution", help="ソリューションの雛形を作る")
     s.add_argument("name", help="一意の名前 (半角英数字。例: SalesAutomation)")

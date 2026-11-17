@@ -35,6 +35,16 @@ AI に直させるときは、その全文と該当の `*.flow.json` を渡し�
 - 404: `params.local.json` の URL・リスト名・ID が違う
 - プレミアムのエラー: HTTP や Dataverse コネクタは Power Automate Free では実行できない (`validate` が警告を出します)
 
+## キャンバス アプリ (Power Apps)
+
+- `new-app` で「ベースの .msapp が登録されていません」: [app-authoring.md](app-authoring.md) の手順で `app-base` を先に実行する
+- `app-base` で「古い形式の .msapp」: Studio で開いて保存し直し、もう一度エクスポートする (`Src/*.pa.yaml` を含む形式が必要)
+- `validate` の「値は Power Fx の数式として = で始めてください」: `Text: こんにちは` ではなく `Text: ="こんにちは"`
+- インポートは通ったが画面がベースのまま / 空: Studio で開き直す。直らなければ `.msapp` を Studio の
+  「開く」→「参照」で直接開いて表示を確かめ、結果を `templates/apps/bases/<id>/base.json` の `verified` に書く
+- Studio で開くと ⚠ (数式エラー): 関数名・列名・データ ソース名を確認する。データ ソースが無いエラーなら、
+  ベースにそのデータ ソースを追加してから取り直す (pa.yaml だけでは追加できない)
+
 ## 動いたら
 
 - テンプレートの `template.verified` を「YYYY-MM インポート・実行確認済み」に更新する

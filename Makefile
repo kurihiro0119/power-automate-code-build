@@ -1,6 +1,6 @@
 PY ?= python3
 
-.PHONY: build legacy validate test templates list
+.PHONY: build legacy validate test templates list app-templates
 
 build:        ## 検証して dist/ にソリューション zip を作る
 	$(PY) -m pabuild build
@@ -19,3 +19,6 @@ templates:    ## フロー テンプレートの一覧
 
 list:         ## ソリューションとフローの一覧
 	$(PY) -m pabuild list
+
+app-templates: ## アプリ テンプレートと登録済みベースの一覧
+	$(PY) -m pabuild app-templates

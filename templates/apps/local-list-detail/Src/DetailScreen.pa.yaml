@@ -1,0 +1,38 @@
+# Power Apps ソースコード (pa.yaml v3)。書き方: docs/app-authoring.md
+Screens:
+  DetailScreen:
+    Properties:
+      Fill: =RGBA(245, 246, 250, 1)
+    Children:
+      - BackButton:
+          Control: Classic/Button
+          Properties:
+            Text: ="← 一覧へ"
+            OnSelect: =Back()
+            X: =24
+            Y: =16
+            Width: =140
+            Height: =44
+      - DetailName:
+          Control: Label
+          Properties:
+            Text: =ProductGallery.Selected.Name
+            FontWeight: =FontWeight.Bold
+            Size: =22
+            X: =24
+            Y: =80
+            Width: =Parent.Width - 48
+            Height: =56
+      - DetailInfo:
+          Control: Label
+          Properties:
+            Text: |-
+              ="コード: " & ProductGallery.Selected.Code & Char(10) &
+              "在庫: " & If(ProductGallery.Selected.Stock > 0, ProductGallery.Selected.Stock & " 台", "なし") & Char(10) &
+              "メモ: " & ProductGallery.Selected.Note
+            Size: =16
+            VerticalAlign: =VerticalAlign.Top
+            X: =24
+            Y: =150
+            Width: =Parent.Width - 48
+            Height: =160

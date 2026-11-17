@@ -1,0 +1,11 @@
+# Power Apps ソースコード (pa.yaml v3)。書き方: docs/app-authoring.md
+# データは名前付き数式 (Formulas) に埋め込む。実データに替えるときは、ベースに追加したデータ ソース名を Items に書く
+App:
+  Properties:
+    Formulas: |-
+      =ProductList = Table(
+          {Code: "A001", Name: "ノートPC", Stock: 12, Note: "貸出用。返却時に初期化する"},
+          {Code: "A002", Name: "モニター", Stock: 5, Note: "27 インチ"},
+          {Code: "B001", Name: "キーボード", Stock: 0, Note: "入荷待ち"}
+      );
+    StartScreen: =ListScreen

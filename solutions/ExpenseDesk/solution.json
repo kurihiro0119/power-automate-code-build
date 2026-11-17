@@ -1,0 +1,13 @@
+{
+  "uniqueName": "ExpenseDesk",
+  "displayName": "出張旅費の精算",
+  "description": "コネクタもサインインも不要。ボタン入力だけで宿泊上限・日当・警告・承認段を判定する",
+  "version": "1.0.0.0",
+  "publisher": {
+    "uniqueName": "labpublisher",
+    "displayName": "Lab Publisher",
+    "prefix": "lab",
+    "optionValuePrefix": 10000
+  },
+  "params": {}
+}

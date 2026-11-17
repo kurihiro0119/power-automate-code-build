@@ -1,0 +1,60 @@
+# Power Apps ソースコード (pa.yaml v3)。書き方: docs/app-authoring.md
+Screens:
+  ListScreen:
+    Properties:
+      Fill: =RGBA(245, 246, 250, 1)
+    Children:
+      - ListTitle:
+          Control: Label
+          Properties:
+            Text: ="備品一覧"
+            FontWeight: =FontWeight.Bold
+            Size: =22
+            X: =24
+            Y: =16
+            Width: =Parent.Width - 48
+            Height: =56
+      - SearchInput:
+          Control: Classic/TextInput
+          Properties:
+            Default: =""
+            HintText: ="コードか名前の先頭で検索"
+            X: =24
+            Y: =80
+            Width: =Parent.Width - 48
+            Height: =44
+      - ProductGallery:
+          Control: Gallery
+          Variant: BrowseLayout_Vertical_OneTextVariant_ver5.0
+          Properties:
+            Items: =Filter(ProductList, IsBlank(SearchInput.Text) || StartsWith(Code, SearchInput.Text) || StartsWith(Name, SearchInput.Text))
+            TemplateSize: =76
+            OnSelect: =Navigate(DetailScreen, ScreenTransition.Cover)
+            TemplateFill: =If(ThisItem.IsSelected, RGBA(222, 236, 249, 1), RGBA(255, 255, 255, 1))
+            X: =24
+            Y: =136
+            Width: =Parent.Width - 48
+            Height: =Parent.Height - 160
+          Children:
+            - ItemName:
+                Control: Label
+                Properties:
+                  Text: =ThisItem.Name
+                  FontWeight: =FontWeight.Semibold
+                  Size: =16
+                  OnSelect: =Select(Parent)
+                  X: =16
+                  Y: =8
+                  Width: =Parent.TemplateWidth - 32
+                  Height: =32
+            - ItemSub:
+                Control: Label
+                Properties:
+                  Text: =ThisItem.Code & "  /  在庫 " & ThisItem.Stock
+                  Color: =RGBA(96, 94, 92, 1)
+                  Size: =12
+                  OnSelect: =Select(Parent)
+                  X: =16
+                  Y: =40
+                  Width: =Parent.TemplateWidth - 32
+                  Height: =28

@@ -12,7 +12,7 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict
 
-from . import flowdef
+from . import canvas, flowdef
 from .project import ProjectError, write_json
 
 
@@ -122,9 +122,50 @@ def import_solution_zip(zip_path: Path, root: Path, dir_name: str = "", force: b
             }
             write_json(target / "flows" / f"{name}.flow.json", flow_doc)
             count += 1
-        if count == 0:
-            raise ProjectError("この zip にはクラウド フローが含まれていません")
+        app_count = _import_canvas_apps(zf, target)
+        if count == 0 and app_count == 0:
+            raise ProjectError("この zip にはクラウド フローもキャンバス アプリも含まれていません")
         if overrides:
             manifest["connectionReferences"] = overrides
         write_json(target / "solution.json", manifest)
         return target
+
+
+def _app_dir_name(schema: str, display: str, taken: set) -> str:
+    # スキーマ名は <prefix>_<名前>_<5桁> の形。真ん中を使い、無理なら表示名から作る
+    m = re.match(r"^[a-z0-9]+_(.+?)(_[0-9a-f]{5})?$", schema)
+    cand = m.group(1) if m else schema
+    for text in (cand, display, "App"):
+        name = re.sub(r"[^A-Za-z0-9_]", "", text or "")
+        if name and name[0].isalpha():
+            break
+    else:
+        name = "App"
+    name = name[:1].upper() + name[1:]
+    base, i = name, 2
+    while name.lower() in taken:
+        name, i = f"{base}{i}", i + 1
+    taken.add(name.lower())
+    return name
+
+
+def _import_canvas_apps(zf: zipfile.ZipFile, target: Path) -> int:
+    """キャンバス アプリを apps/<名前>/ (app.json + Src + base/) に取り出す。"""
+    entries = canvas._canvas_entries(zf)
+    taken: set = set()
+    for _xml, display, info in entries:
+        name = _app_dir_name(info["name"], display, taken)
+        app_dir = target / "apps" / name
+        canvas.capture_from_solution(zf, app_dir / "base", info["name"])
+        src = canvas.read_msapp_src((app_dir / "base" / "base.msapp").read_bytes())
+        for rel, text in src.items():
+            dest = app_dir / "Src" / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_text(text, encoding="utf-8")
+        write_json(app_dir / "app.json", {
+            "name": name,
+            "displayName": display or name,
+            "description": "",
+            "schemaName": info["name"],
+        })
+    return len(entries)
